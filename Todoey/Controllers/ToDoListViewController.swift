@@ -8,30 +8,66 @@
 
 import UIKit
 import RealmSwift
+import ChameleonFramework
 
-class ToDoListViewController: UITableViewController {
+class ToDoListViewController: SwipeTableViewController {
 
     var toDoItems: Results<Item>?
     
     let realm = try! Realm()
     
+    
+    @IBOutlet weak var searchBar: UISearchBar!
+    
+    
     var selectedCategory : Category? {
         didSet{
            loadItems()
+            
         }
     }
-    
-
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
-            print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
+        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
         
+        tableView.rowHeight = 65.0
+        
+        tableView.separatorStyle = .none
 
-        
     }
 
+    override func viewWillAppear(_ animated: Bool) {
+        
+        if let colorHex = selectedCategory?.color {
+            
+            title = selectedCategory!.name
+            
+            guard let navBar = navigationController?.navigationBar else {fatalError("Navigation controller does not exist")}
+            
+            navBar.barTintColor = UIColor(hexString: colorHex)
+            
+            navBar.tintColor = ContrastColorOf(backgroundColor: UIColor(hexString: colorHex), returnFlat: true)
+            
+            navBar.largeTitleTextAttributes = [NSAttributedString.Key.foregroundColor : ContrastColorOf(backgroundColor: UIColor(hexString: colorHex), returnFlat: true)]
+            
+            searchBar.barTintColor = UIColor(hexString: colorHex)
+            
+        }
+    }
+    
+    override func viewWillDisappear(_ animated: Bool) {
+        
+        guard let originalColor = UIColor(hexString: "2A5488") else {
+            fatalError()}
+        navigationController?.navigationBar.barTintColor = originalColor
+        navigationController?.navigationBar.tintColor = FlatWhite()
+        navigationController?.navigationBar.largeTitleTextAttributes = [NSAttributedString.Key.foregroundColor : FlatWhite()]
+        }
+
+    
+    
     // MARK - Tableview Datasource Methods
     
    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -40,15 +76,22 @@ class ToDoListViewController: UITableViewController {
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
-        let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
         
         if let item = toDoItems?[indexPath.row] {
             
             cell.textLabel?.text = item.title
             
+            let categoryBackgroundColor = HexColor(hexString: selectedCategory?.color ?? "2A5488")
+            
+            if let color = categoryBackgroundColor.darken(byPercentage: CGFloat(indexPath.row) / CGFloat(toDoItems!.count)) {
+                cell.backgroundColor = color
+                
+                cell.textLabel?.textColor = ContrastColorOf(backgroundColor: color, returnFlat: true)
+            }
+            
             //Ternary Operator!!!!!
             cell.accessoryType = item.done ? .checkmark : .none
-            
         } else {
             cell.textLabel?.text = "No Items added"
         }
@@ -74,7 +117,6 @@ class ToDoListViewController: UITableViewController {
         tableView.deselectRow(at: indexPath, animated: true)
         
     }
-    
     
     //MARK - Add New Items
     
@@ -133,6 +175,23 @@ class ToDoListViewController: UITableViewController {
 
         tableView.reloadData()
     }
+    
+    //MARK: - delete data from swipe
+    
+    override func updateModel(at indexPath: IndexPath) {
+        if let itemForDeletion = self.toDoItems?[indexPath.row] {
+            do {
+                try self.realm.write{
+                    self.realm.delete(itemForDeletion)
+                }
+            } catch {
+                print("error deleting category, \(error)")
+            }
+            
+        }
+    }
+    
+    
 }
     //MARK: - Search Bar Methods
 
